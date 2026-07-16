@@ -20,7 +20,24 @@ const state = {
         weatherKey: '',
         vworldKey: ''
     },
-    cachedWeather: {}
+    cachedWeather: {},
+    // Simulation state management
+    sim: {
+        isDrawing: false,
+        waypoints: [],
+        polyline: null,
+        isPlaying: false,
+        isPaused: false,
+        droneMarker: null,
+        speed: 5, // m/s
+        defaultAltitude: 50, // m
+        currentStep: 0,
+        progress: 0,
+        accumulatedDist: 0,
+        batteryLevel: 100,
+        animationFrameId: null,
+        lastTime: 0
+    }
 };
 
 // UI Element Selector References
@@ -62,7 +79,22 @@ const el = {
     tabMap: document.getElementById('tab-map'),
     tabSpecs: document.getElementById('tab-specs'),
     sidebarPanel: document.getElementById('sidebar-panel'),
-    mapSection: document.querySelector('main > section')
+    mapSection: document.querySelector('main > section'),
+    // Simulator DOM Selectors
+    btnDrawMode: document.getElementById('btn-draw-mode'),
+    btnResetPath: document.getElementById('btn-reset-path'),
+    inputDefaultAlt: document.getElementById('input-default-alt'),
+    displayDefaultAlt: document.getElementById('display-default-alt'),
+    inputSimSpeed: document.getElementById('input-sim-speed'),
+    displaySimSpeed: document.getElementById('display-sim-speed'),
+    btnPlaySim: document.getElementById('btn-play-sim'),
+    btnPauseSim: document.getElementById('btn-pause-sim'),
+    simStatusBadge: document.getElementById('sim-status-badge'),
+    simTelemetry: document.getElementById('sim-telemetry'),
+    telemetryDist: document.getElementById('telemetry-dist'),
+    telemetryWind: document.getElementById('telemetry-wind'),
+    telemetryBatt: document.getElementById('telemetry-batt'),
+    telemetryBattBar: document.getElementById('telemetry-batt-bar')
 };
 
 // Predefined Drone Presets
@@ -168,7 +200,11 @@ function initMap() {
 
     // Map Click Event
     map.on('click', (e) => {
-        updateLocation(e.latlng.lat, e.latlng.lng);
+        if (state.sim.isDrawing) {
+            handleMapClickForPath(e);
+        } else {
+            updateLocation(e.latlng.lat, e.latlng.lng);
+        }
     });
 }
 
@@ -413,6 +449,54 @@ function initEventListeners() {
             el.tabMap.classList.remove('text-emerald-400', 'border-emerald-500');
         });
     }
+
+    // Path Simulator Control Listeners
+    if (el.btnDrawMode) {
+        el.btnDrawMode.addEventListener('click', toggleDrawMode);
+        el.btnResetPath.addEventListener('click', resetPath);
+        
+        el.inputDefaultAlt.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            state.sim.defaultAltitude = val;
+            el.displayDefaultAlt.innerText = `${val} m`;
+            
+            // 아직 개별 고도가 지정되지 않은 모든 웨이포인트 고도를 기본 고도로 일괄 업데이트
+            state.sim.waypoints.forEach(wp => {
+                if (!wp.isCustomAlt) {
+                    wp.alt = val;
+                }
+            });
+            refreshAllData();
+        });
+
+        el.inputSimSpeed.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            state.sim.speed = val;
+            el.displaySimSpeed.innerText = `${val} m/s`;
+        });
+
+        el.btnPlaySim.addEventListener('click', startSimulation);
+        el.btnPauseSim.addEventListener('click', pauseSimulation);
+    }
+
+    // Leaflet 팝업 슬라이더에서 호출할 수 있도록 글로벌 범위에 고도 변경 함수 노출
+    window.updateWaypointAlt = (index, value) => {
+        const alt = parseInt(value);
+        if (state.sim.waypoints[index]) {
+            state.sim.waypoints[index].alt = alt;
+            state.sim.waypoints[index].isCustomAlt = true;
+            
+            const badge = document.getElementById(`pop-alt-val-${index}`);
+            if (badge) badge.innerText = `${alt}m`;
+            
+            // 툴팁 팝업이 닫힐 때 마커 툴팁 레이블 등을 최신화
+            const marker = state.sim.waypoints[index].marker;
+            if (marker) {
+                marker.setTooltipContent(`지점 #${index + 1}<br><span class="text-emerald-400 font-bold">${alt}m</span>`);
+            }
+            refreshAllData();
+        }
+    };
 }
 
 // Close Modal API Setup
@@ -887,3 +971,449 @@ function triggerWindParticles() {
         mapContainer.appendChild(p);
     }
 }
+
+// ==========================================
+// 🧪 교과 융합 수학적/물리학적 모델 공식 엔진
+// ==========================================
+
+/**
+ * 1. [화학II] 아레니우스 식(Arrhenius Equation) 기반 온도별 배터리 화학 효율 연산
+ * 기온에 따른 화학 반응속도 변화율을 적분 모델에 반영
+ */
+function calcBatteryEfficiency(temp) {
+    const Ea_over_R = 1500; // 활성화 에너지 상수 (드론 배터리 방전 특성 대입값)
+    const T0 = 25 + 273.15; // 기준 온도 25°C (절대온도 298.15 K)
+    const T = temp + 273.15; // 현재 기온의 절대온도 K
+
+    // 아레니우스 공식 적용
+    let efficiency = Math.exp(-Ea_over_R * (1 / T - 1 / T0));
+    
+    // 배터리 최고 효율 100% 및 최저 방전 한계선 설정 (안전 한계선 약 30%)
+    efficiency = Math.min(1.0, Math.max(0.3, efficiency));
+    return efficiency;
+}
+
+/**
+ * 2. [물리학] 윈드 시어 파워 로(Wind Shear Power Law) 고도별 풍속 보정 연산
+ * 지면 거칠기를 고려해 고도 상승 시 상공 풍속의 증가 추이 계산
+ */
+function calcWindShear(baseWind, altitude) {
+    const alpha = 0.22; // 지면 거칠기 지수 (도심 외곽 복합 지표면 표준값)
+    const z0 = 10; // 지상 기본 측정 고도 (10m)
+    
+    // Wind Shear Power Law 공식
+    const correctedWind = baseWind * Math.pow(altitude / z0, alpha);
+    return Math.round(correctedWind * 10) / 10;
+}
+
+// ==========================================
+// 🗺️ Leaflet 경로 드로잉 & 웨이포인트 매니저
+// ==========================================
+
+// 경로 그리기 모드 온/오프 토글
+function toggleDrawMode() {
+    if (state.sim.isPlaying) {
+        alert('시뮬레이션이 동작 중일 때는 경로를 수정할 수 없습니다.');
+        return;
+    }
+
+    state.sim.isDrawing = !state.sim.isDrawing;
+    
+    if (state.sim.isDrawing) {
+        el.btnDrawMode.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i> 그리기 완료';
+        el.btnDrawMode.classList.add('bg-slate-800', 'border-emerald-500/50');
+        el.simStatusBadge.innerText = '경로 편집 중';
+        el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20';
+        map.getContainer().style.cursor = 'crosshair';
+        
+        // 안내 팝업 메시지
+        L.popup()
+            .setLatLng(map.getCenter())
+            .setContent('<div class="p-1.5 text-xs font-semibold text-slate-300">지도를 차례대로 클릭하여 비행 경로(Waypoint)를 생성해 주세요.</div>')
+            .openOn(map);
+    } else {
+        el.btnDrawMode.innerHTML = '<i data-lucide="edit-3" class="w-3.5 h-3.5 text-emerald-400"></i> 경로 그리기 모드';
+        el.btnDrawMode.classList.remove('bg-slate-800', 'border-emerald-500/50');
+        el.simStatusBadge.innerText = state.sim.waypoints.length > 0 ? '경로 대기 중' : '대기 중';
+        el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400';
+        map.getContainer().style.cursor = '';
+        map.closePopup();
+    }
+    lucide.createIcons();
+}
+
+// 경로 그리기 모드일 때 지도를 클릭하면 좌표 점 추가
+function handleMapClickForPath(e) {
+    const latlng = e.latlng;
+    addWaypoint(latlng);
+}
+
+// Waypoint 데이터 생성 및 맵 마커/팝업 바인딩
+function addWaypoint(latlng) {
+    const index = state.sim.waypoints.length;
+    const alt = state.sim.defaultAltitude;
+
+    // 커스텀 숫자 웨이포인트 마커 아이콘 설정
+    const wpIcon = L.divIcon({
+        className: 'waypoint-marker',
+        html: `<div>${index + 1}</div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+    });
+
+    const wpMarker = L.marker(latlng, {
+        draggable: true,
+        icon: wpIcon
+    }).addTo(map);
+
+    // 마커 툴팁 설정 (마우스 호버 시 고도 정보 간략 표출)
+    wpMarker.bindTooltip(`지점 #${index + 1}<br><span class="text-emerald-400 font-bold">${alt}m</span>`, {
+        permanent: false,
+        direction: 'top'
+    });
+
+    // 마커 클릭 시 팝업 설정 (개별 고도 조절용 슬라이더 UI 렌더링)
+    const popupContent = `
+        <div class="p-3 text-xs w-48 alt-popup select-none">
+            <div class="flex justify-between font-bold mb-1.5 border-b border-slate-800 pb-1">
+                <span class="text-slate-400">지점 #${index + 1} 고도 설정</span>
+                <span class="text-emerald-400 font-bold" id="pop-alt-val-${index}">${alt}m</span>
+            </div>
+            <div class="space-y-2">
+                <input type="range" min="10" max="150" value="${alt}" step="5" 
+                       class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500" 
+                       oninput="window.updateWaypointAlt(${index}, this.value)">
+                <span class="text-[9px] text-slate-500 block leading-tight">고도에 따라 Wind Shear에 의해 풍속 보정이 실시간으로 가해집니다.</span>
+            </div>
+        </div>
+    `;
+    
+    wpMarker.bindPopup(popupContent, {
+        className: 'alt-popup'
+    });
+
+    // 드래그 마커 이동 시 폴리라인 재렌더링
+    wpMarker.on('drag', () => {
+        state.sim.waypoints[index].lat = wpMarker.getLatLng().lat;
+        state.sim.waypoints[index].lon = wpMarker.getLatLng().lng;
+        renderPolyline();
+    });
+
+    // 새 웨이포인트 정보 배열 저장
+    state.sim.waypoints.push({
+        lat: latlng.lat,
+        lon: latlng.lng,
+        alt: alt,
+        isCustomAlt: false,
+        marker: wpMarker
+    });
+
+    renderPolyline();
+}
+
+// 획적 선(Polyline) 다시 그리기 및 상태 업데이트
+function renderPolyline() {
+    const latlngs = state.sim.waypoints.map(wp => [wp.lat, wp.lon]);
+
+    if (state.sim.polyline) {
+        state.sim.polyline.setLatLngs(latlngs);
+    } else {
+        state.sim.polyline = L.polyline(latlngs, {
+            color: '#10b981',
+            weight: 3,
+            opacity: 0.6,
+            className: 'neon-path-line'
+        }).addTo(map);
+    }
+
+    // 웨이포인트 2개 이상일 때 시뮬레이션 시작 가능
+    if (state.sim.waypoints.length >= 2) {
+        el.btnPlaySim.disabled = false;
+        el.btnPlaySim.classList.remove('opacity-30');
+    } else {
+        el.btnPlaySim.disabled = true;
+    }
+}
+
+// 경로 에디터 전체 상태 초기화 및 맵 클린업
+function resetPath() {
+    stopSimulationLoop();
+    
+    // Remove Waypoints Markers
+    state.sim.waypoints.forEach(wp => {
+        if (wp.marker) map.removeLayer(wp.marker);
+    });
+    state.sim.waypoints = [];
+
+    // Remove Polyline
+    if (state.sim.polyline) {
+        map.removeLayer(state.sim.polyline);
+        state.sim.polyline = null;
+    }
+
+    // Remove Simulation Drone
+    if (state.sim.droneMarker) {
+        map.removeLayer(state.sim.droneMarker);
+        state.sim.droneMarker = null;
+    }
+
+    // Reset simulator states
+    state.sim.isPlaying = false;
+    state.sim.isPaused = false;
+    state.sim.currentStep = 0;
+    state.sim.progress = 0;
+    state.sim.accumulatedDist = 0;
+    state.sim.batteryLevel = 100;
+
+    // Reset UI
+    el.btnPlaySim.disabled = true;
+    el.btnPlaySim.innerHTML = '<i data-lucide="play" class="w-3.5 h-3.5"></i> 시뮬레이션 시작';
+    el.btnPauseSim.classList.add('hidden');
+    el.simTelemetry.classList.add('hidden');
+    el.simStatusBadge.innerText = '대기 중';
+    el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400';
+    
+    if (state.sim.isDrawing) {
+        toggleDrawMode();
+    }
+    
+    lucide.createIcons();
+    refreshAllData();
+}
+
+// ==========================================
+// 🚀 실시간 가상 비행 시뮬레이터 구동 엔진
+// ==========================================
+
+// 시뮬레이터 주행 시작
+function startSimulation() {
+    if (state.sim.waypoints.length < 2) return;
+    
+    if (state.sim.isDrawing) {
+        toggleDrawMode(); // 그리기 모드가 켜져있다면 끎
+    }
+
+    state.sim.isPlaying = true;
+    state.sim.isPaused = false;
+    el.simStatusBadge.innerText = '비행 주행 중';
+    el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+    
+    el.btnPlaySim.innerHTML = '<i data-lucide="play" class="w-3.5 h-3.5"></i> 비행 중';
+    el.btnPlaySim.disabled = true;
+    el.btnPauseSim.classList.remove('hidden');
+    el.simTelemetry.classList.remove('hidden');
+
+    // 첫 주행 시작 시 배터리 및 누적거리 리셋
+    if (state.sim.currentStep === 0 && state.sim.progress === 0) {
+        state.sim.batteryLevel = 100;
+        state.sim.accumulatedDist = 0;
+        
+        // 기존 드론 마커 제거 후 신규 가상드론 생성
+        if (state.sim.droneMarker) map.removeLayer(state.sim.droneMarker);
+        
+        const startPt = state.sim.waypoints[0];
+        const droneIcon = L.divIcon({
+            className: 'sim-drone-marker',
+            html: '<i data-lucide="navigation" class="w-4 h-4 text-emerald-400 rotate-45"></i>',
+            iconSize: [28, 28],
+            iconAnchor: [14, 14]
+        });
+
+        state.sim.droneMarker = L.marker([startPt.lat, startPt.lon], {
+            icon: droneIcon,
+            zIndexOffset: 1000
+        }).addTo(map);
+    }
+
+    state.sim.lastTime = performance.now();
+    state.sim.animationFrameId = requestAnimationFrame(runSimulationStep);
+    
+    lucide.createIcons();
+}
+
+// 시뮬레이터 일시 정지
+function pauseSimulation() {
+    state.sim.isPaused = true;
+    stopSimulationLoop();
+    
+    el.btnPlaySim.disabled = false;
+    el.btnPlaySim.innerHTML = '<i data-lucide="play" class="w-3.5 h-3.5"></i> 시뮬레이션 재개';
+    el.btnPauseSim.classList.add('hidden');
+    el.simStatusBadge.innerText = '일시 정지';
+    el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20';
+    lucide.createIcons();
+}
+
+// 애니메이션 루프 중지
+function stopSimulationLoop() {
+    if (state.sim.animationFrameId) {
+        cancelAnimationFrame(state.sim.animationFrameId);
+        state.sim.animationFrameId = null;
+    }
+}
+
+// requestAnimationFrame 루프 콜백 (비행 틱)
+function runSimulationStep(timestamp) {
+    if (!state.sim.isPlaying || state.sim.isPaused) return;
+
+    const dt = (timestamp - state.sim.lastTime) / 1000; // 초 단위 델타 타임
+    state.sim.lastTime = timestamp;
+
+    const waypoints = state.sim.waypoints;
+    const currentIdx = state.sim.currentStep;
+
+    if (currentIdx >= waypoints.length - 1) {
+        // 비행 완료 처리
+        finishSimulation();
+        return;
+    }
+
+    const ptA = waypoints[currentIdx];
+    const ptB = waypoints[currentIdx + 1];
+
+    // 두 점 사이의 실제 물리적 거리 구하기 (L.LatLng의 distanceTo 함수 활용, m 단위)
+    const latlngA = L.latLng(ptA.lat, ptA.lon);
+    const latlngB = L.latLng(ptB.lat, ptB.lon);
+    const segmentDistance = latlngA.distanceTo(latlngB);
+
+    // 가상 주행 속도와 프레임 타임을 곱해 프레임당 이동 비율 누적
+    const stepSpeed = state.sim.speed; // m/s
+    const progressDelta = (stepSpeed * dt) / segmentDistance;
+    state.sim.progress += progressDelta;
+
+    // 실시간 이동 거리 누적 가산
+    const frameDistance = stepSpeed * dt;
+    state.sim.accumulatedDist += frameDistance;
+
+    // 노드 이동 한계 도달 체크
+    if (state.sim.progress >= 1.0) {
+        state.sim.progress = 0;
+        state.sim.currentStep++;
+        state.sim.animationFrameId = requestAnimationFrame(runSimulationStep);
+        return;
+    }
+
+    // 1. 드론 위치 보간 계산 (Interpolation)
+    const curLat = ptA.lat + (ptB.lat - ptA.lat) * state.sim.progress;
+    const curLon = ptA.lon + (ptB.lon - ptA.lon) * state.sim.progress;
+    state.sim.droneMarker.setLatLng([curLat, curLon]);
+
+    // 2. 고도 보간 및 실시간 기상 연산 (Wind Shear)
+    const curAlt = ptA.alt + (ptB.alt - ptA.alt) * state.sim.progress;
+    const baseWind = state.weather ? state.weather.windSpeed : 3.4;
+    const shearWind = calcWindShear(baseWind, curAlt);
+
+    // 3. 화학적 아레니우스 식 배터리 실시간 방전률 연산
+    const temp = state.weather ? state.weather.temp : 20.0;
+    const chemicalEfficiency = calcBatteryEfficiency(temp); // 저온 배터리 노화 효율 (0.3 ~ 1.0)
+    
+    // 바람에 저항하기 위해 드론이 소모하는 모터 전력 추가 계수 산출 (풍속에 정비례해 배터리 소모 가중)
+    const windLoadFactor = 1.0 + (shearWind / state.drone.maxWind) * 0.4;
+    
+    // 기본 소모율: 5m/s 이동 시 초당 약 0.15% 기본 감소
+    const baseDischargeRate = 0.15; 
+    
+    // 종합 소모율 = (기본 소모율 / 화학 효율) * 바람 부하 계수 * 시간 델타
+    const battDrain = (baseDischargeRate / chemicalEfficiency) * windLoadFactor * dt;
+    state.sim.batteryLevel = Math.max(0, state.sim.batteryLevel - battDrain);
+
+    // 4. 실시간 위험 구역 충돌 검증 (Turf.js)
+    const dronePoint = turf.point([curLon, curLat]);
+    let collisionDetected = false;
+    let collisionZoneName = '';
+
+    demoAirspaces.features.forEach(feature => {
+        if (turf.booleanPointInPolygon(dronePoint, feature)) {
+            collisionDetected = true;
+            collisionZoneName = feature.properties.name;
+        }
+    });
+
+    // 5. 실시간 UI 텔레메트리 갱신
+    el.telemetryDist.innerText = `${Math.round(state.sim.accumulatedDist)} m`;
+    el.telemetryWind.innerText = `${shearWind} m/s (고도: ${Math.round(curAlt)}m)`;
+    el.telemetryBatt.innerText = `${Math.round(state.sim.batteryLevel)} %`;
+    el.telemetryBattBar.style.width = `${state.sim.batteryLevel}%`;
+
+    // 배터리 잔량에 따른 상태 색상 변화
+    if (state.sim.batteryLevel < 20) {
+        el.telemetryBatt.className = 'text-red-500 font-bold';
+        el.telemetryBattBar.className = 'h-full bg-red-500 transition-all duration-200';
+    } else if (state.sim.batteryLevel < 50) {
+        el.telemetryBatt.className = 'text-amber-500 font-bold';
+        el.telemetryBattBar.className = 'h-full bg-amber-500 transition-all duration-200';
+    } else {
+        el.telemetryBatt.className = 'text-emerald-400 font-bold';
+        el.telemetryBattBar.className = 'h-full bg-emerald-500 transition-all duration-200';
+    }
+
+    // 6. 충돌 경고 및 배터리 방전 시 강제 비상 착륙 중단
+    if (collisionDetected) {
+        stopSimulationLoop();
+        updateDecisionPanelUI('RED', [
+            { type: 'danger', text: `[시뮬레이션 중단] 비행 제한/금지구역 침범 감지: ${collisionZoneName}` }
+        ]);
+        el.simStatusBadge.innerText = '침범 비상착륙';
+        el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-500 border border-red-500/20';
+        el.btnPlaySim.disabled = true;
+        el.btnPauseSim.classList.add('hidden');
+        return;
+    }
+
+    if (state.sim.batteryLevel <= 0) {
+        stopSimulationLoop();
+        updateDecisionPanelUI('RED', [
+            { type: 'danger', text: '[시뮬레이션 중단] 배터리가 완전히 방전되어 기체가 추락했습니다.' }
+        ]);
+        el.simStatusBadge.innerText = '배터리 추락';
+        el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-500 border border-red-500/20';
+        el.btnPlaySim.disabled = true;
+        el.btnPauseSim.classList.add('hidden');
+        return;
+    }
+
+    // 다음 프레임 예약
+    state.sim.animationFrameId = requestAnimationFrame(runSimulationStep);
+}
+
+// 시뮬레이션 성공적 완료 리포트 발행
+function finishSimulation() {
+    stopSimulationLoop();
+    state.sim.isPlaying = false;
+    state.sim.isPaused = false;
+    
+    // UI 재설정
+    el.btnPlaySim.disabled = false;
+    el.btnPlaySim.innerHTML = '<i data-lucide="play" class="w-3.5 h-3.5"></i> 시뮬레이션 완료';
+    el.btnPauseSim.classList.add('hidden');
+    el.simStatusBadge.innerText = '주행 완료';
+    el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+
+    // 종합 판단 대시보드 리포트에 최종 시뮬레이션 결과 표출
+    const batt = Math.round(state.sim.batteryLevel);
+    const dist = Math.round(state.sim.accumulatedDist);
+    const temp = state.weather ? state.weather.temp : 20.0;
+    
+    const battEff = Math.round(calcBatteryEfficiency(temp) * 100);
+
+    const reports = [
+        { type: 'info', text: `[시뮬레이션 성공] 총 비행 거리 ${dist}m 주행 완료. 잔여 배터리: ${batt}%` },
+        { type: 'info', text: `[배터리 분석] 화학적 아레니우스 식에 의한 저온 배터리 내부 효율은 기준치(25°C) 대비 ${battEff}% 수준으로 산출되었습니다.` }
+    ];
+
+    if (batt < 25) {
+        updateDecisionPanelUI('YELLOW', [
+            ...reports,
+            { type: 'warning', text: '[위험 요인] 최종 목적지 도착 시 배터리가 안전 임계값(25%) 미만입니다. 복귀 비행을 감안해 배터리 팩을 용량이 큰 것으로 변경하거나 경로를 단축하세요.' }
+        ]);
+    } else {
+        updateDecisionPanelUI('GREEN', reports);
+    }
+    
+    // 드론 시뮬레이터 상태 0으로 복귀 (재시동 가능하도록)
+    state.sim.currentStep = 0;
+    state.sim.progress = 0;
+    
+    lucide.createIcons();
+}
+

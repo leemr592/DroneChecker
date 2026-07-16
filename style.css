@@ -202,3 +202,74 @@ h1, h2, h3, .font-outfit {
     animation: wind-drift var(--speed) linear infinite;
     z-index: 5;
 }
+
+/* Simulation Path and Markers styling */
+.waypoint-marker {
+    background: rgba(15, 23, 42, 0.9) !important;
+    border: 2px solid #10b981 !important; /* drone-green */
+    border-radius: 50% !important;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.6) !important;
+    color: #fff !important;
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.2s;
+}
+
+.waypoint-marker:hover {
+    transform: scale(1.15);
+    background: #10b981 !important;
+    color: #030712 !important;
+}
+
+.sim-drone-marker {
+    background: #10b981;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 15px #10b981, inset 0 0 5px rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #030712;
+    animation: drone-hover 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes drone-hover {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-3px);
+    }
+}
+
+/* Active drawing line animated dashes */
+.neon-path-line {
+    stroke-dasharray: 8, 8;
+    animation: dash-move 30s linear infinite;
+}
+
+@keyframes dash-move {
+    to {
+        stroke-dashoffset: -1000;
+    }
+}
+
+/* Leaflet Popup customization for altitude controllers */
+.alt-popup .leaflet-popup-content-wrapper {
+    background: rgba(15, 23, 42, 0.95) !important;
+    border: 1px solid rgba(51, 65, 85, 0.5) !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+    backdrop-filter: blur(8px);
+    border-radius: 12px !important;
+    color: #f1f5f9 !important;
+}
+
+.alt-popup .leaflet-popup-tip {
+    background: rgba(15, 23, 42, 0.95) !important;
+    border-left: 1px solid rgba(51, 65, 85, 0.5);
+    border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+}
+
