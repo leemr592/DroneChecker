@@ -94,7 +94,9 @@ const el = {
     telemetryDist: document.getElementById('telemetry-dist'),
     telemetryWind: document.getElementById('telemetry-wind'),
     telemetryBatt: document.getElementById('telemetry-batt'),
-    telemetryBattBar: document.getElementById('telemetry-batt-bar')
+    telemetryBattBar: document.getElementById('telemetry-batt-bar'),
+    altProfileSvg: document.getElementById('alt-profile-svg'),
+    altChartPlaceholder: document.getElementById('alt-chart-placeholder')
 };
 
 // Predefined Drone Presets
@@ -1133,6 +1135,9 @@ function renderPolyline() {
     } else {
         el.btnPlaySim.disabled = true;
     }
+
+    // 하단 고도 프로필 차트 실시간 갱신
+    renderAltitudeChart();
 }
 
 // 경로 에디터 전체 상태 초기화 및 맵 클린업
@@ -1178,6 +1183,7 @@ function resetPath() {
     }
     
     lucide.createIcons();
+    renderAltitudeChart(); // 차트 초기화 (플레이스홀더 다시 표출)
     refreshAllData();
 }
 
@@ -1335,6 +1341,9 @@ function runSimulationStep(timestamp) {
     el.telemetryBatt.innerText = `${Math.round(state.sim.batteryLevel)} %`;
     el.telemetryBattBar.style.width = `${state.sim.batteryLevel}%`;
 
+    // 하단 고도 프로필 차트에 현재 시뮬레이터 실시간 비행 위치 연동
+    updateSimulationIndicator(state.sim.accumulatedDist);
+
     // 배터리 잔량에 따른 상태 색상 변화
     if (state.sim.batteryLevel < 20) {
         el.telemetryBatt.className = 'text-red-500 font-bold';
@@ -1416,4 +1425,253 @@ function finishSimulation() {
     
     lucide.createIcons();
 }
+
+// ==========================================
+// 📈 비행 고도 단면 프로필 그래프 에디터 엔진
+// ==========================================
+
+// SVG 기반 고도 단면 차트 실시간 드로잉
+function renderAltitudeChart() {
+    const waypoints = state.sim.waypoints;
+
+    // 웨이포인트 2개 미만일 시 차트 비활성화
+    if (waypoints.length < 2) {
+        el.altProfileSvg.classList.add('hidden');
+        el.altChartPlaceholder.classList.remove('hidden');
+        return;
+    }
+
+    el.altProfileSvg.classList.remove('hidden');
+    el.altChartPlaceholder.classList.add('hidden');
+
+    // 차트 크기 가져오기
+    const rect = el.altProfileSvg.getBoundingClientRect();
+    const width = rect.width || 400;
+    const height = rect.height || 90;
+
+    // 차트 여백 설정
+    const margin = { top: 12, right: 18, bottom: 18, left: 24 };
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+
+    // 각 Waypoint 간 누적 거리 계산
+    let totalDist = 0;
+    const distances = [0];
+    for (let i = 1; i < waypoints.length; i++) {
+        const latlngA = L.latLng(waypoints[i-1].lat, waypoints[i-1].lon);
+        const latlngB = L.latLng(waypoints[i].lat, waypoints[i].lon);
+        totalDist += latlngA.distanceTo(latlngB);
+        distances.push(totalDist);
+    }
+    
+    // 비행 총거리가 0일 때 방지
+    const safeTotalDist = totalDist || 1;
+
+    // 각 지점별 SVG x, y 좌표 산출 (고도 0m ~ 160m 기준 스케일링)
+    const coords = waypoints.map((wp, idx) => {
+        const x = margin.left + (distances[idx] / safeTotalDist) * plotWidth;
+        const y = height - margin.bottom - (wp.alt / 160) * plotHeight;
+        return { x, y, alt: wp.alt };
+    });
+
+    // 1. Defs 그라디언트 정의
+    const defs = `
+        <defs>
+            <linearGradient id="alt-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#ef4444" stop-opacity="0.45" />
+                <stop offset="100%" stop-color="#ef4444" stop-opacity="0.0" />
+            </linearGradient>
+        </defs>
+    `;
+
+    // 2. 가로 고도 축 레이블 및 수평 가이드선 그리기
+    const altTicks = [50, 100, 150];
+    let horizLines = '';
+    altTicks.forEach(tickAlt => {
+        const y = height - margin.bottom - (tickAlt / 160) * plotHeight;
+        horizLines += `
+            <line class="alt-grid-line" x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" />
+            <text class="alt-axis-label" x="${margin.left - 4}" y="${y + 3}" text-anchor="end">${tickAlt}m</text>
+        `;
+    });
+
+    // 3. 지상 기준선 (Base Line)
+    const baseLineY = height - margin.bottom;
+    const baseLine = `<line class="alt-base-line" x1="${margin.left}" y1="${baseLineY}" x2="${width - margin.right}" y2="${baseLineY}" />`;
+
+    // 4. 세로 웨이포인트 점선 눈금 및 하단 레이블
+    let vertLines = '';
+    coords.forEach((coord, idx) => {
+        vertLines += `
+            <line class="alt-grid-line" x1="${coord.x}" y1="${margin.top}" x2="${coord.x}" y2="${baseLineY}" />
+            <text class="alt-node-label" x="${coord.x}" y="${height - 4}">W${idx + 1}</text>
+        `;
+    });
+
+    // 5. 고도 붉은 곡선(Polyline) 및 채우기 영역 데이터 조립
+    const pathD = 'M ' + coords.map(c => `${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' L ');
+    const fillD = `${pathD} L ${coords[coords.length - 1].x.toFixed(1)} ${baseLineY.toFixed(1)} L ${coords[0].x.toFixed(1)} ${baseLineY.toFixed(1)} Z`;
+
+    const fillArea = `<path class="alt-fill-area" d="${fillD}" />`;
+    const altCurve = `<path class="alt-curve" d="${pathD}" />`;
+
+    // 6. 드래그 가능 노드 점(Circles) 렌더링
+    let nodes = '';
+    coords.forEach((coord, idx) => {
+        nodes += `
+            <circle class="alt-control-node" cx="${coord.x.toFixed(1)}" cy="${coord.y.toFixed(1)}" r="5" data-index="${idx}" />
+        `;
+    });
+
+    // 7. 실시간 시뮬레이션 탐침선(Indicator Line/Circle)
+    const indicator = `
+        <line id="sim-indicator-line" class="alt-indicator-line" x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${baseLineY}" style="display: none;" />
+        <circle id="sim-indicator-circle" class="alt-indicator-circle" cx="${margin.left}" cy="${baseLineY}" style="display: none;" />
+    `;
+
+    // SVG 컨텐츠 주입
+    el.altProfileSvg.innerHTML = defs + horizLines + baseLine + vertLines + fillArea + altCurve + nodes + indicator;
+
+    // 드래그 마우스 및 터치 이벤트 바인딩
+    initAltitudeChartDragEvents(margin, plotHeight, height);
+}
+
+// SVG 드래그 인터랙션 모듈 (마우스 & 터치 대응)
+function initAltitudeChartDragEvents(margin, plotHeight, height) {
+    let activeIndex = null;
+
+    const getEventY = (e) => {
+        const rect = el.altProfileSvg.getBoundingClientRect();
+        if (e.touches && e.touches[0]) {
+            return e.touches[0].clientY - rect.top;
+        }
+        return e.clientY - rect.top;
+    };
+
+    const startDrag = (e) => {
+        const target = e.target;
+        if (target.classList.contains('alt-control-node')) {
+            activeIndex = parseInt(target.getAttribute('data-index'));
+            state.sim.dragNodeIndex = activeIndex;
+            target.classList.add('dragging');
+            map.dragging.disable(); // 드래그 중에는 Leaflet 맵 드래그 방지
+        }
+    };
+
+    const doDrag = (e) => {
+        if (activeIndex === null) return;
+        e.preventDefault();
+
+        const y = getEventY(e);
+        
+        // Y좌표 역산출 -> 고도(10m ~ 150m) 매핑
+        const zeroAltY = height - margin.bottom;
+        const relativeY = zeroAltY - y;
+        let alt = Math.round((relativeY / plotHeight) * 160);
+        
+        // 고도 범위 강제 클램핑 (10m ~ 150m)
+        alt = Math.min(150, Math.max(10, alt));
+
+        // 해당 웨이포인트 고도 값 실시간 업데이트
+        if (state.sim.waypoints[activeIndex]) {
+            state.sim.waypoints[activeIndex].alt = alt;
+            state.sim.waypoints[activeIndex].isCustomAlt = true;
+
+            // 지도상의 마커 툴팁 동기화 갱신
+            const marker = state.sim.waypoints[activeIndex].marker;
+            if (marker) {
+                marker.setTooltipContent(`지점 #${activeIndex + 1}<br><span class="text-emerald-400 font-bold">${alt}m</span>`);
+            }
+            
+            // 실시간 날씨 기반 룰 연산 갱신
+            refreshAllData();
+            
+            // 차트 부드럽게 재렌더링
+            renderAltitudeChart();
+            
+            // 드래그 중인 노드 스타일 유지
+            const activeNode = el.altProfileSvg.querySelector(`.alt-control-node[data-index="${activeIndex}"]`);
+            if (activeNode) activeNode.classList.add('dragging');
+        }
+    };
+
+    const stopDrag = () => {
+        if (activeIndex !== null) {
+            const activeNode = el.altProfileSvg.querySelector(`.alt-control-node[data-index="${activeIndex}"]`);
+            if (activeNode) activeNode.classList.remove('dragging');
+            
+            activeIndex = null;
+            state.sim.dragNodeIndex = null;
+            map.dragging.enable(); // 지도 드래그 원상복구
+        }
+    };
+
+    // 마우스 이벤트 등록
+    el.altProfileSvg.addEventListener('mousedown', startDrag);
+    window.addEventListener('mousemove', doDrag);
+    window.addEventListener('mouseup', stopDrag);
+
+    // 모바일 터치 이벤트 등록
+    el.altProfileSvg.addEventListener('touchstart', startDrag, { passive: false });
+    window.addEventListener('touchmove', doDrag, { passive: false });
+    window.addEventListener('touchend', stopDrag);
+}
+
+// 시뮬레이션 비행 중 하단의 노란 탐침선 및 위치 동그라미 실시간 이동 처리
+function updateSimulationIndicator(accumulatedDist) {
+    const line = document.getElementById('sim-indicator-line');
+    const circle = document.getElementById('sim-indicator-circle');
+    
+    if (!line || !circle || state.sim.waypoints.length < 2) return;
+
+    // 보이기 처리
+    line.style.display = 'block';
+    circle.style.display = 'block';
+
+    // 총 거리 계산
+    let totalDist = 0;
+    const distances = [0];
+    for (let i = 1; i < state.sim.waypoints.length; i++) {
+        const latlngA = L.latLng(state.sim.waypoints[i-1].lat, state.sim.waypoints[i-1].lon);
+        const latlngB = L.latLng(state.sim.waypoints[i].lat, state.sim.waypoints[i].lon);
+        totalDist += latlngA.distanceTo(latlngB);
+        distances.push(totalDist);
+    }
+    const safeTotalDist = totalDist || 1;
+    
+    // 차트 레이아웃 픽셀 수치
+    const rect = el.altProfileSvg.getBoundingClientRect();
+    const width = rect.width || 400;
+    const height = rect.height || 90;
+    const margin = { top: 12, right: 18, bottom: 18, left: 24 };
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+
+    // 현재 진행률 비율에 맞는 X좌표 산출
+    const ratio = Math.min(1.0, accumulatedDist / safeTotalDist);
+    const curX = margin.left + ratio * plotWidth;
+
+    // 현재 지점의 고도 선형 보간값 산출 (탐침 동그라미의 Y좌표 싱크용)
+    let curAlt = state.sim.defaultAltitude;
+    for (let i = 1; i < distances.length; i++) {
+        if (accumulatedDist <= distances[i]) {
+            const segDist = distances[i] - distances[i-1];
+            const progress = segDist > 0 ? (accumulatedDist - distances[i-1]) / segDist : 0;
+            const altA = state.sim.waypoints[i-1].alt;
+            const altB = state.sim.waypoints[i].alt;
+            curAlt = altA + (altB - altA) * progress;
+            break;
+        }
+    }
+    const curY = height - margin.bottom - (curAlt / 160) * plotHeight;
+
+    // 탐침선 위치 업데이트
+    line.setAttribute('x1', curX.toFixed(1));
+    line.setAttribute('x2', curX.toFixed(1));
+    
+    // 탐침 동그라미 위치 업데이트
+    circle.setAttribute('cx', curX.toFixed(1));
+    circle.setAttribute('cy', curY.toFixed(1));
+}
+
 

@@ -301,33 +301,56 @@
             </div>
 
             <!-- Decision Gauge Overlay Dashboard (Bottom) -->
-            <div class="absolute bottom-4 left-4 right-4 z-20 bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-5 md:p-6 shadow-2xl flex flex-col md:flex-row items-center gap-6 max-h-[300px] md:max-h-[180px] transition-all duration-300" id="decision-panel">
+            <div class="absolute bottom-4 left-4 right-4 z-20 bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col lg:flex-row items-center gap-5 max-h-[400px] lg:max-h-[180px] transition-all duration-300" id="decision-panel">
                 
-                <!-- Large Status Indicator Circle -->
-                <div class="flex items-center gap-4 shrink-0">
-                    <div id="decision-pulse-indicator" class="w-20 h-20 rounded-full border-4 border-slate-800 flex items-center justify-center transition-all duration-500 relative bg-slate-950">
+                <!-- 1. Large Status Indicator Circle -->
+                <div class="flex items-center gap-4 shrink-0 w-full lg:w-auto">
+                    <div id="decision-pulse-indicator" class="w-16 h-16 rounded-full border-4 border-slate-800 flex items-center justify-center transition-all duration-500 relative bg-slate-950">
                         <span id="decision-pulse-glow" class="absolute inset-0 rounded-full scale-100 opacity-0 transition-all duration-500"></span>
-                        <i id="decision-icon" data-lucide="help-circle" class="w-10 h-10 text-slate-400 relative z-10 transition-transform duration-500"></i>
+                        <i id="decision-icon" data-lucide="help-circle" class="w-8 h-8 text-slate-400 relative z-10 transition-transform duration-500"></i>
                     </div>
                     <div>
-                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">종합 비행 적합성</span>
-                        <div id="decision-status-text" class="text-2xl font-bold font-outfit tracking-tight text-slate-400">데이터 대기 중</div>
+                        <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">종합 비행 적합성</span>
+                        <div id="decision-status-text" class="text-lg font-bold font-outfit tracking-tight text-slate-400">데이터 대기 중</div>
                     </div>
                 </div>
 
-                <!-- Separator line -->
-                <div class="hidden md:block w-[1px] h-20 bg-slate-800"></div>
+                <!-- Separator line 1 -->
+                <div class="hidden lg:block w-[1px] h-14 bg-slate-800"></div>
 
-                <!-- Detailed Decision Feedbacks & Laws -->
-                <div class="flex-1 w-full overflow-y-auto space-y-2 max-h-[120px] md:max-h-[130px] pr-2 scrollbar-thin">
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">안전 위협 요인 및 관련 법규 요약</h3>
-                    <ul id="decision-reasons-list" class="space-y-1.5 text-sm text-slate-300">
+                <!-- 2. Detailed Decision Feedbacks & Laws -->
+                <div class="flex-1 w-full overflow-y-auto space-y-2 max-h-[110px] pr-2 scrollbar-thin">
+                    <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">안전 위협 요인 및 관련 법규 요약</h3>
+                    <ul id="decision-reasons-list" class="space-y-1 text-xs text-slate-300">
                         <li class="flex items-start gap-2.5 text-slate-500">
-                            <i data-lucide="info" class="w-4 h-4 shrink-0 mt-0.5"></i>
+                            <i data-lucide="info" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i>
                             <span>지도 상에 핀을 꽂거나 주소를 검색하여 원하는 장소의 종합 판단 결과를 확인해 주세요.</span>
                         </li>
                     </ul>
                 </div>
+
+                <!-- Separator line 2 -->
+                <div class="hidden lg:block w-[1px] h-14 bg-slate-800"></div>
+
+                <!-- 3. Altitude Profile Chart Editor -->
+                <div class="w-full lg:w-[42%] h-[120px] lg:h-full flex flex-col justify-between relative bg-slate-950/40 border border-slate-800/40 rounded-xl p-3 select-none overflow-hidden" id="alt-chart-container">
+                    <div class="flex items-center justify-between shrink-0 mb-1">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">비행 고도 프로필 단면 에디터</span>
+                        <span class="text-[9px] text-slate-500 font-semibold">드래그하여 지점별 고도(10m~150m) 연속 편집</span>
+                    </div>
+                    
+                    <!-- SVG Chart Space -->
+                    <div class="flex-1 w-full relative">
+                        <!-- Chart placeholder message -->
+                        <div id="alt-chart-placeholder" class="absolute inset-0 flex items-center justify-center text-[11px] text-slate-600 font-medium">
+                            <i data-lucide="route" class="w-4 h-4 mr-1.5 text-slate-700"></i> 경로가 지정되면 고도 프로필 곡선이 활성화됩니다.
+                        </div>
+                        <svg id="alt-profile-svg" class="w-full h-full block z-10 relative hidden">
+                            <!-- SVG elements will be dynamically generated by app.js -->
+                        </svg>
+                    </div>
+                </div>
+
             </div>
         </section>
     </main>

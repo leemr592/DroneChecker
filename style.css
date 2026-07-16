@@ -273,3 +273,73 @@ h1, h2, h3, .font-outfit {
     border-bottom: 1px solid rgba(51, 65, 85, 0.5);
 }
 
+/* SVG Altitude Profile Chart Styles */
+.alt-base-line {
+    stroke: rgba(255, 255, 255, 0.15);
+    stroke-width: 1.5;
+}
+
+.alt-grid-line {
+    stroke: rgba(255, 255, 255, 0.08);
+    stroke-width: 1;
+    stroke-dasharray: 3, 3;
+}
+
+.alt-curve {
+    stroke: #ef4444; /* red-500 */
+    stroke-width: 2.5;
+    fill: none;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    filter: drop-shadow(0 2px 4px rgba(239, 68, 68, 0.3));
+}
+
+.alt-fill-area {
+    fill: url(#alt-gradient);
+    opacity: 0.15;
+}
+
+.alt-control-node {
+    fill: #ef4444;
+    stroke: #ffffff;
+    stroke-width: 2;
+    cursor: ns-resize;
+    transition: r 0.15s, fill 0.15s;
+    filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.8));
+}
+
+.alt-control-node:hover, .alt-control-node.dragging {
+    r: 6.5;
+    fill: #ffffff;
+    stroke: #ef4444;
+}
+
+.alt-indicator-line {
+    stroke: #f59e0b; /* amber-500 */
+    stroke-width: 1.5;
+    stroke-dasharray: 2, 2;
+}
+
+.alt-indicator-circle {
+    fill: #f59e0b;
+    stroke: #ffffff;
+    stroke-width: 1.5;
+    r: 4;
+}
+
+.alt-axis-label {
+    fill: #64748b; /* slate-500 */
+    font-size: 8px;
+    font-weight: 700;
+    user-select: none;
+}
+
+.alt-node-label {
+    fill: #94a3b8; /* slate-400 */
+    font-size: 9px;
+    font-weight: bold;
+    text-anchor: middle;
+    user-select: none;
+}
+
+
