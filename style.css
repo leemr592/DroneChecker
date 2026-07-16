@@ -1,0 +1,204 @@
+/* Custom UI/UX Styles for Drone Skyguard */
+
+/* Typography settings */
+body {
+    font-family: 'Inter', 'Noto Sans KR', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background-color: #030712; /* slate-950 */
+}
+
+h1, h2, h3, .font-outfit {
+    font-family: 'Outfit', 'Noto Sans KR', sans-serif;
+}
+
+/* Scrollbar Customization for Sidebar & Feedbacks */
+.scrollbar-thin::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #1e293b; /* slate-800 */
+    border-radius: 9999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: #334155; /* slate-700 */
+}
+
+/* Glassmorphism Styles */
+.backdrop-blur-lg {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+.backdrop-blur-md {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+/* Map customization */
+#map {
+    background: #0b0f19;
+}
+
+/* Adjust Leaflet Default Controls for Cyberpunk Theme */
+.leaflet-bar {
+    border: 1px solid rgba(51, 65, 85, 0.5) !important; /* slate-700 */
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3) !important;
+}
+
+.leaflet-bar a {
+    background-color: rgba(15, 23, 42, 0.95) !important; /* slate-900 */
+    color: #94a3b8 !important; /* slate-400 */
+    border-bottom: 1px solid rgba(51, 65, 85, 0.5) !important;
+    transition: all 0.2s;
+}
+
+.leaflet-bar a:hover {
+    background-color: #1e293b !important; /* slate-800 */
+    color: #10b981 !important; /* drone-green */
+}
+
+.leaflet-container {
+    font-family: inherit;
+}
+
+/* Status Glow & Pulsing Animations */
+
+/* Green Pass State */
+.glow-pass {
+    border-color: #10b981 !important; /* emerald-500 */
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+}
+
+.pulse-glow-pass {
+    background-color: rgba(16, 185, 129, 0.2);
+    animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+    0% {
+        transform: scale(1);
+        opacity: 0.6;
+    }
+    50% {
+        transform: scale(1.15);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 0.6;
+    }
+}
+
+/* Yellow Warning State */
+.glow-warning {
+    border-color: #f59e0b !important; /* amber-500 */
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
+}
+
+.pulse-glow-warning {
+    background-color: rgba(245, 158, 11, 0.2);
+    animation: pulse-yellow 2s infinite;
+}
+
+@keyframes pulse-yellow {
+    0% {
+        transform: scale(1);
+        opacity: 0.6;
+    }
+    50% {
+        transform: scale(1.15);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 0.6;
+    }
+}
+
+/* Red Danger State */
+.glow-danger {
+    border-color: #ef4444 !important; /* red-500 */
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+}
+
+.pulse-glow-danger {
+    background-color: rgba(239, 68, 68, 0.2);
+    animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+    0% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+    50% {
+        transform: scale(1.18);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+}
+
+/* Active Suggestion Hovering */
+.search-suggestion-item:hover {
+    background-color: rgba(30, 41, 59, 0.8);
+    border-left: 3px solid #10b981; /* emerald-500 */
+}
+
+/* Skeleton Loading Animation */
+.skeleton {
+    background: linear-gradient(90deg, #0f172a 25%, #1e293b 50%, #0f172a 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Map Dark Theme Filter */
+.leaflet-tile-pane {
+    filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+
+/* Wind directional animated particles */
+@keyframes wind-drift {
+    0% {
+        transform: translate(0, 0) rotate(var(--wind-deg));
+        opacity: 0;
+    }
+    10% {
+        opacity: 0.4;
+    }
+    90% {
+        opacity: 0.4;
+    }
+    100% {
+        transform: translate(var(--drift-x), var(--drift-y)) rotate(var(--wind-deg));
+        opacity: 0;
+    }
+}
+
+.wind-particle {
+    position: absolute;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0));
+    height: 1px;
+    width: 60px;
+    animation: wind-drift var(--speed) linear infinite;
+    z-index: 5;
+}
