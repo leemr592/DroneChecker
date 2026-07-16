@@ -65,11 +65,21 @@
         </div>
     </header>
 
+    <!-- Mobile Tabs Navigation -->
+    <div class="flex md:hidden border-b border-slate-800 bg-slate-900/80 backdrop-blur shrink-0 z-30">
+        <button id="tab-map" class="flex-1 py-3.5 text-xs font-bold text-emerald-400 border-b-2 border-emerald-500 transition flex items-center justify-center gap-2 uppercase tracking-wider">
+            <i data-lucide="map" class="w-4 h-4"></i> 지도 & 판단
+        </button>
+        <button id="tab-specs" class="flex-1 py-3.5 text-xs font-bold text-slate-400 border-b-2 border-transparent transition flex items-center justify-center gap-2 uppercase tracking-wider">
+            <i data-lucide="sliders" class="w-4 h-4"></i> 사양 & 설정
+        </button>
+    </div>
+
     <!-- Main Content Area -->
     <main class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         
         <!-- Left Sidebar (Control & Specs Panel) -->
-        <aside class="w-full md:w-[420px] bg-slate-900/40 backdrop-blur-lg border-r border-slate-800/80 flex flex-col overflow-y-auto shrink-0 z-20">
+        <aside id="sidebar-panel" class="hidden md:flex w-full md:w-[420px] bg-slate-900/40 backdrop-blur-lg border-r border-slate-800/80 flex-col overflow-y-auto shrink-0 z-20">
             
             <!-- Address Search -->
             <div class="p-5 border-b border-slate-800/80">

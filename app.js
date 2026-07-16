@@ -58,7 +58,11 @@ const el = {
     decisionStatusText: document.getElementById('decision-status-text'),
     decisionReasonsList: document.getElementById('decision-reasons-list'),
     layerVworld: document.getElementById('layer-vworld'),
-    layerCustomRadius: document.getElementById('layer-custom-radius')
+    layerCustomRadius: document.getElementById('layer-custom-radius'),
+    tabMap: document.getElementById('tab-map'),
+    tabSpecs: document.getElementById('tab-specs'),
+    sidebarPanel: document.getElementById('sidebar-panel'),
+    mapSection: document.querySelector('main > section')
 };
 
 // Predefined Drone Presets
@@ -371,6 +375,44 @@ function initEventListeners() {
             }, 1000);
         });
     });
+
+    // Mobile Tabs Switching Action
+    if (el.tabMap && el.tabSpecs) {
+        el.tabMap.addEventListener('click', () => {
+            // Show Map, Hide Sidebar
+            el.sidebarPanel.classList.add('hidden');
+            el.sidebarPanel.classList.remove('flex');
+            el.mapSection.classList.add('flex');
+            el.mapSection.classList.remove('hidden');
+
+            // Style Active Tab
+            el.tabMap.classList.add('text-emerald-400', 'border-emerald-500');
+            el.tabMap.classList.remove('text-slate-400', 'border-transparent');
+            el.tabSpecs.classList.add('text-slate-400', 'border-transparent');
+            el.tabSpecs.classList.remove('text-emerald-400', 'border-emerald-500');
+
+            // Recalculate Map container layout size (Leaflet mobile rendering fix)
+            if (map) {
+                setTimeout(() => {
+                    map.invalidateSize();
+                }, 100);
+            }
+        });
+
+        el.tabSpecs.addEventListener('click', () => {
+            // Hide Map, Show Sidebar
+            el.mapSection.classList.add('hidden');
+            el.mapSection.classList.remove('flex');
+            el.sidebarPanel.classList.add('flex');
+            el.sidebarPanel.classList.remove('hidden');
+
+            // Style Active Tab
+            el.tabSpecs.classList.add('text-emerald-400', 'border-emerald-500');
+            el.tabSpecs.classList.remove('text-slate-400', 'border-transparent');
+            el.tabMap.classList.add('text-slate-400', 'border-transparent');
+            el.tabMap.classList.remove('text-emerald-400', 'border-emerald-500');
+        });
+    }
 }
 
 // Close Modal API Setup
