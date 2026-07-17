@@ -1444,15 +1444,22 @@ function renderAltitudeChart() {
     el.altProfileSvg.classList.remove('hidden');
     el.altChartPlaceholder.classList.add('hidden');
 
-    // 차트 크기 가져오기
+    // 차트 크기 가져오기 ( display: none 일 때 0으로 인식하는 문제 방지 )
     const rect = el.altProfileSvg.getBoundingClientRect();
-    const width = rect.width || 400;
-    const height = rect.height || 90;
+    let width = rect.width;
+    let height = rect.height;
+
+    // 크기가 0일 경우, 부모 컨테이너 크기를 기반으로 Fallback 스케일 부여
+    if (width === 0 || height === 0) {
+        const parentRect = document.getElementById('alt-chart-container').getBoundingClientRect();
+        width = parentRect.width ? (parentRect.width - 24) : 380;
+        height = 68; // 기본 고도 차트 높이 Fallback
+    }
 
     // 차트 여백 설정
     const margin = { top: 12, right: 18, bottom: 18, left: 24 };
-    const plotWidth = width - margin.left - margin.right;
-    const plotHeight = height - margin.top - margin.bottom;
+    const plotWidth = Math.max(50, width - margin.left - margin.right);
+    const plotHeight = Math.max(30, height - margin.top - margin.bottom);
 
     // 각 Waypoint 간 누적 거리 계산
     let totalDist = 0;
