@@ -1596,10 +1596,8 @@ function initAltitudeChartDragEvents() {
                 marker.setTooltipContent(`지점 #${activeIndex + 1}<br><span class="text-emerald-400 font-bold">${alt}m</span>`);
             }
             
-            // 실시간 날씨 기반 룰 연산 갱신
-            refreshAllData();
-            
             // 차트 부드럽게 재렌더링 (이벤트 위임이라 중복 리스너 추가 없음!)
+            // 드래그 중에는 무거운 룰 연산(refreshAllData)을 스킵하여 60fps 렌더링 확보
             renderAltitudeChart();
             
             // 드래그 중인 노드 스타일 유지
@@ -1616,6 +1614,9 @@ function initAltitudeChartDragEvents() {
             
             state.sim.dragNodeIndex = null;
             if (map) map.dragging.enable(); // 지도 드래그 원상복구
+
+            // 드래그가 완전히 멈춘 릴리즈 시점에 최종 룰 연산 및 기상 판단 1회 수행 (성능 최적화)
+            refreshAllData();
         }
     };
 
