@@ -39,7 +39,8 @@ const state = {
         lastTime: 0,
         timeScale: 1, // 시뮬레이션 속도 배수 (1x, 5x, 10x 등)
         autoTrack: true, // 드론 비행 중 지도 중앙 자동 카메라 뷰 갱신
-        tracePolyline: null // 실시간 비행 주행 지나온 궤적 폴리라인 객체
+        tracePolyline: null, // 실시간 비행 주행 지나온 궤적 폴리라인 객체
+        traceGlowPolyline: null // 실시간 비행 궤적 네온 발광용 백그라운드 폴리라인
     }
 };
 
@@ -1173,10 +1174,14 @@ function resetPath() {
         state.sim.polyline = null;
     }
 
-    // Remove Simulation Trace Polyline
+    // Remove Simulation Trace Polyline (Double Layer)
     if (state.sim.tracePolyline) {
         map.removeLayer(state.sim.tracePolyline);
         state.sim.tracePolyline = null;
+    }
+    if (state.sim.traceGlowPolyline) {
+        map.removeLayer(state.sim.traceGlowPolyline);
+        state.sim.traceGlowPolyline = null;
     }
 
     // Remove Simulation Drone
@@ -1271,16 +1276,35 @@ function startSimulation() {
         zIndexOffset: 1000
     }).addTo(map);
 
-    // 실시간 지나온 비행 궤적 폴리라인 초기화 및 생성
+    // 실시간 지나온 비행 궤적 폴리라인 초기화 및 생성 (Double Polyline 기법으로 줌/스크롤 시 궤도 이탈 현상 완벽 차단)
+    if (state.sim.traceGlowPolyline) {
+        map.removeLayer(state.sim.traceGlowPolyline);
+        state.sim.traceGlowPolyline = null;
+    }
     if (state.sim.tracePolyline) {
         map.removeLayer(state.sim.tracePolyline);
         state.sim.tracePolyline = null;
     }
+
+    // 1. 발광선 (Glow: 아래에 깔릴 굵고 투명한 네온 효과)
+    state.sim.traceGlowPolyline = L.polyline([[startPt.lat, startPt.lon]], {
+        color: '#ef4444',
+        weight: 9,
+        opacity: 0.35,
+        lineCap: 'round',
+        lineJoin: 'round',
+        zIndexOffset: 990
+    }).addTo(map);
+
+    // 2. 핵심선 (Core: 그 위에 얹힐 얇고 뚜렷한 실선)
     state.sim.tracePolyline = L.polyline([[startPt.lat, startPt.lon]], {
-        color: '#ef4444', // 빨간 노드와 깔맞춤한 네온 레드 궤적
-        weight: 4,
-        opacity: 0.85,
-        className: 'live-trace-line'
+        color: '#ef4444',
+        weight: 3.5,
+        opacity: 0.95,
+        lineCap: 'round',
+        lineJoin: 'round',
+        className: 'live-trace-line',
+        zIndexOffset: 995
     }).addTo(map);
 
     state.sim.lastTime = performance.now();
@@ -1362,13 +1386,19 @@ function runSimulationStep(timestamp) {
         map.panTo([curLat, curLon]);
     }
 
-    // 실시간 비행 궤적(Trace) 폴리라인 좌표 갱신
-    if (state.sim.tracePolyline) {
+    // 실시간 비행 궤적(Trace - Double Layer) 폴리라인 좌표 갱신
+    if (state.sim.tracePolyline || state.sim.traceGlowPolyline) {
         // 이미 완전히 통과한 웨이포인트들의 좌표
         const passedLatLngs = waypoints.slice(0, currentIdx + 1).map(wp => [wp.lat, wp.lon]);
         // 현재 보간된 드론의 좌표를 맨 뒤에 가산
         passedLatLngs.push([curLat, curLon]);
-        state.sim.tracePolyline.setLatLngs(passedLatLngs);
+
+        if (state.sim.traceGlowPolyline) {
+            state.sim.traceGlowPolyline.setLatLngs(passedLatLngs);
+        }
+        if (state.sim.tracePolyline) {
+            state.sim.tracePolyline.setLatLngs(passedLatLngs);
+        }
     }
 
     // 2. 고도 보간 및 실시간 기상 연산 (Wind Shear)
