@@ -1263,7 +1263,7 @@ function startSimulation() {
     const droneIcon = L.divIcon({
         className: 'sim-drone-marker',
         html: `
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-navigation" style="transform: rotate(45deg); filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.8));">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-navigation" style="transform: rotate(45deg); filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.85));">
                 <polygon points="3 11 22 2 13 21 11 13 3 11"/>
             </svg>
         `,

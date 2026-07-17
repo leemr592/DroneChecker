@@ -233,6 +233,10 @@ h1, h2, h3, .font-outfit {
     align-items: center;
     justify-content: center;
     color: #030712;
+    /* Leaflet의 절대 좌표 transform 배치 엔진과 충돌을 막기 위해 컨테이너의 애니메이션 제거 */
+}
+
+.sim-drone-marker svg {
     animation: drone-hover 0.5s ease-in-out infinite alternate;
 }
 
