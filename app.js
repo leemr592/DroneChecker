@@ -103,7 +103,12 @@ const el = {
     altChartPlaceholder: document.getElementById('alt-chart-placeholder'),
     inputTimeScale: document.getElementById('input-time-scale'),
     displayTimeScale: document.getElementById('display-time-scale'),
-    simAutoTrack: document.getElementById('sim-auto-track')
+    simAutoTrack: document.getElementById('sim-auto-track'),
+    mBtnDrawMode: document.getElementById('m-btn-draw-mode'),
+    mBtnResetPath: document.getElementById('m-btn-reset-path'),
+    mBtnPlaySim: document.getElementById('m-btn-play-sim'),
+    mDrawText: document.getElementById('m-draw-text'),
+    mPlayText: document.getElementById('m-play-text')
 };
 
 // Predefined Drone Presets
@@ -497,6 +502,13 @@ function initEventListeners() {
 
         el.btnPlaySim.addEventListener('click', startSimulation);
         el.btnPauseSim.addEventListener('click', pauseSimulation);
+
+        // 모바일 간이 시뮬레이터 제어 버튼 바인딩
+        if (el.mBtnDrawMode) {
+            el.mBtnDrawMode.addEventListener('click', toggleDrawMode);
+            el.mBtnResetPath.addEventListener('click', resetPath);
+            el.mBtnPlaySim.addEventListener('click', startSimulation);
+        }
     }
 
     // Leaflet 팝업 슬라이더에서 호출할 수 있도록 글로벌 범위에 고도 변경 함수 노출
@@ -1042,6 +1054,12 @@ function toggleDrawMode() {
     if (state.sim.isDrawing) {
         el.btnDrawMode.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i> 그리기 완료';
         el.btnDrawMode.classList.add('bg-slate-800', 'border-emerald-500/50');
+        
+        if (el.mBtnDrawMode) {
+            el.mBtnDrawMode.innerHTML = '<i data-lucide="check" class="w-3 h-3 text-emerald-400"></i> 완료';
+            el.mBtnDrawMode.classList.add('bg-slate-800', 'border-emerald-500/50');
+        }
+
         el.simStatusBadge.innerText = '경로 편집 중';
         el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20';
         map.getContainer().style.cursor = 'crosshair';
@@ -1054,6 +1072,12 @@ function toggleDrawMode() {
     } else {
         el.btnDrawMode.innerHTML = '<i data-lucide="edit-3" class="w-3.5 h-3.5 text-emerald-400"></i> 경로 그리기 모드';
         el.btnDrawMode.classList.remove('bg-slate-800', 'border-emerald-500/50');
+        
+        if (el.mBtnDrawMode) {
+            el.mBtnDrawMode.innerHTML = '<i data-lucide="edit-3" class="w-3 h-3 text-emerald-400"></i> 그리기';
+            el.mBtnDrawMode.classList.remove('bg-slate-800', 'border-emerald-500/50');
+        }
+
         el.simStatusBadge.innerText = state.sim.waypoints.length > 0 ? '경로 대기 중' : '대기 중';
         el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400';
         map.getContainer().style.cursor = '';
@@ -1150,8 +1174,15 @@ function renderPolyline() {
     if (state.sim.waypoints.length >= 2) {
         el.btnPlaySim.disabled = false;
         el.btnPlaySim.classList.remove('opacity-30');
+        if (el.mBtnPlaySim) {
+            el.mBtnPlaySim.disabled = false;
+            el.mBtnPlaySim.classList.remove('opacity-30');
+        }
     } else {
         el.btnPlaySim.disabled = true;
+        if (el.mBtnPlaySim) {
+            el.mBtnPlaySim.disabled = true;
+        }
     }
 
     // 하단 고도 프로필 차트 실시간 갱신
@@ -1208,6 +1239,16 @@ function resetPath() {
     el.simStatusBadge.innerText = '대기 중';
     el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400';
     
+    // 모바일 리셋 동기화
+    if (el.mBtnPlaySim) {
+        el.mBtnPlaySim.disabled = true;
+        el.mPlayText.innerText = '비행 시작';
+    }
+    if (el.mBtnDrawMode) {
+        el.mBtnDrawMode.classList.remove('bg-slate-800', 'border-emerald-500/50');
+        el.mDrawText.innerText = '경로 그리기';
+    }
+    
     // 배속 슬라이더 및 체크박스 UI 상태 초기화
     if (el.inputTimeScale) el.inputTimeScale.value = 1;
     if (el.displayTimeScale) el.displayTimeScale.innerText = '1 x 배속';
@@ -1248,6 +1289,12 @@ function startSimulation() {
     
     el.btnPlaySim.innerHTML = '<i data-lucide="play" class="w-3.5 h-3.5"></i> 비행 중';
     el.btnPlaySim.disabled = true;
+
+    // 모바일 버튼 상태 동기화
+    if (el.mBtnPlaySim) {
+        el.mBtnPlaySim.disabled = true;
+        el.mPlayText.innerText = '비행 중';
+    }
     el.btnPauseSim.classList.remove('hidden');
     el.simTelemetry.classList.remove('hidden');
 
@@ -1320,6 +1367,11 @@ function pauseSimulation() {
     
     el.btnPlaySim.disabled = false;
     el.btnPlaySim.innerHTML = '<i data-lucide="play" class="w-3.5 h-3.5"></i> 시뮬레이션 재개';
+    
+    if (el.mBtnPlaySim) {
+        el.mBtnPlaySim.disabled = false;
+        el.mPlayText.innerText = '비행 재개';
+    }
     el.btnPauseSim.classList.add('hidden');
     el.simStatusBadge.innerText = '일시 정지';
     el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20';
@@ -1491,6 +1543,11 @@ function finishSimulation() {
     // UI 재설정
     el.btnPlaySim.disabled = false;
     el.btnPlaySim.innerHTML = '<i data-lucide="play" class="w-3.5 h-3.5"></i> 시뮬레이션 완료';
+    
+    if (el.mBtnPlaySim) {
+        el.mBtnPlaySim.disabled = false;
+        el.mPlayText.innerText = '비행 완료';
+    }
     el.btnPauseSim.classList.add('hidden');
     el.simStatusBadge.innerText = '주행 완료';
     el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';

@@ -319,6 +319,20 @@
                 </label>
             </div>
 
+            <!-- Mobile Mini Simulation Overlay Controls (Visible only on Mobile) -->
+            <div id="mobile-sim-control" class="md:hidden absolute top-[125px] right-4 z-20 bg-slate-900/95 border border-slate-800 rounded-xl p-2.5 shadow-2xl flex flex-col gap-1.5 backdrop-blur w-[140px]">
+                <span class="text-[9px] font-bold uppercase text-slate-500 px-1 select-none text-center tracking-wider">간이 시뮬레이터</span>
+                <button id="m-btn-draw-mode" class="py-1.5 px-2 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 text-[10px] font-semibold text-slate-300 flex items-center justify-center gap-1.5 transition">
+                    <i data-lucide="edit-3" class="w-3.5 h-3.5 text-emerald-400"></i> <span id="m-draw-text">경로 그리기</span>
+                </button>
+                <button id="m-btn-reset-path" class="py-1.5 px-2 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 text-[10px] font-semibold text-red-400 flex items-center justify-center gap-1.5 transition">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 경로 리셋
+                </button>
+                <button id="m-btn-play-sim" class="py-1.5 px-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 text-slate-950 disabled:text-slate-600 text-[10px] font-bold flex items-center justify-center gap-1.5 transition disabled:cursor-not-allowed" disabled>
+                    <i data-lucide="play" class="w-3.5 h-3.5"></i> <span id="m-play-text">비행 시작</span>
+                </button>
+            </div>
+
             <!-- Decision Gauge Overlay Dashboard (Bottom) -->
             <div class="absolute bottom-4 left-4 right-4 z-[1000] bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-4 md:p-5 shadow-2xl flex flex-col lg:flex-row items-center gap-5 max-h-[400px] lg:max-h-[180px] transition-all duration-300" id="decision-panel">
                 
