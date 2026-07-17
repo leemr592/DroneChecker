@@ -1231,6 +1231,13 @@ function startSimulation() {
 
     state.sim.isPlaying = true;
     state.sim.isPaused = false;
+
+    // 🚀 [상태 초기화] 시뮬레이션 기동 시 매번 비행 단계를 0(출발점)으로 확실히 리셋
+    state.sim.currentStep = 0;
+    state.sim.progress = 0;
+    state.sim.batteryLevel = 100;
+    state.sim.accumulatedDist = 0;
+    
     el.simStatusBadge.innerText = '비행 주행 중';
     el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
     
@@ -1239,36 +1246,42 @@ function startSimulation() {
     el.btnPauseSim.classList.remove('hidden');
     el.simTelemetry.classList.remove('hidden');
 
-    // 첫 주행 시작 시 배터리 및 누적거리 리셋
-    if (state.sim.currentStep === 0 && state.sim.progress === 0) {
-        state.sim.batteryLevel = 100;
-        state.sim.accumulatedDist = 0;
-        
-        // 기존 드론 마커 제거 후 신규 가상드론 생성
-        if (state.sim.droneMarker) map.removeLayer(state.sim.droneMarker);
-        
-        const startPt = state.sim.waypoints[0];
-        const droneIcon = L.divIcon({
-            className: 'sim-drone-marker',
-            html: '<i data-lucide="navigation" class="w-4 h-4 text-emerald-400 rotate-45"></i>',
-            iconSize: [28, 28],
-            iconAnchor: [14, 14]
-        });
-
-        state.sim.droneMarker = L.marker([startPt.lat, startPt.lon], {
-            icon: droneIcon,
-            zIndexOffset: 1000
-        }).addTo(map);
-
-        // 실시간 지나온 비행 궤적 폴리라인 초기화 및 생성
-        if (state.sim.tracePolyline) map.removeLayer(state.sim.tracePolyline);
-        state.sim.tracePolyline = L.polyline([[startPt.lat, startPt.lon]], {
-            color: '#ef4444', // 빨간 노드와 깔맞춤한 네온 레드 궤적
-            weight: 4,
-            opacity: 0.85,
-            className: 'live-trace-line'
-        }).addTo(map);
+    // 기존 드론 마커가 남아있다면 확실히 제거 후 출발점에 재생성
+    if (state.sim.droneMarker) {
+        map.removeLayer(state.sim.droneMarker);
+        state.sim.droneMarker = null;
     }
+    
+    const startPt = state.sim.waypoints[0];
+    
+    // 🚀 [디스플레이 패치] Lucide 렌더링 딜레이 영향을 받지 않는 직관적인 인라인 SVG 드론 마커 아이콘 탑재
+    const droneIcon = L.divIcon({
+        className: 'sim-drone-marker',
+        html: `
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-navigation" style="transform: rotate(45deg); filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.8));">
+                <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+            </svg>
+        `,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+    });
+
+    state.sim.droneMarker = L.marker([startPt.lat, startPt.lon], {
+        icon: droneIcon,
+        zIndexOffset: 1000
+    }).addTo(map);
+
+    // 실시간 지나온 비행 궤적 폴리라인 초기화 및 생성
+    if (state.sim.tracePolyline) {
+        map.removeLayer(state.sim.tracePolyline);
+        state.sim.tracePolyline = null;
+    }
+    state.sim.tracePolyline = L.polyline([[startPt.lat, startPt.lon]], {
+        color: '#ef4444', // 빨간 노드와 깔맞춤한 네온 레드 궤적
+        weight: 4,
+        opacity: 0.85,
+        className: 'live-trace-line'
+    }).addTo(map);
 
     state.sim.lastTime = performance.now();
     state.sim.animationFrameId = requestAnimationFrame(runSimulationStep);
