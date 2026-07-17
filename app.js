@@ -38,7 +38,8 @@ const state = {
         animationFrameId: null,
         lastTime: 0,
         timeScale: 1, // 시뮬레이션 속도 배수 (1x, 5x, 10x 등)
-        autoTrack: true // 드론 비행 중 지도 중앙 자동 카메라 뷰 갱신
+        autoTrack: true, // 드론 비행 중 지도 중앙 자동 카메라 뷰 갱신
+        tracePolyline: null // 실시간 비행 주행 지나온 궤적 폴리라인 객체
     }
 };
 
@@ -1172,6 +1173,12 @@ function resetPath() {
         state.sim.polyline = null;
     }
 
+    // Remove Simulation Trace Polyline
+    if (state.sim.tracePolyline) {
+        map.removeLayer(state.sim.tracePolyline);
+        state.sim.tracePolyline = null;
+    }
+
     // Remove Simulation Drone
     if (state.sim.droneMarker) {
         map.removeLayer(state.sim.droneMarker);
@@ -1252,6 +1259,15 @@ function startSimulation() {
             icon: droneIcon,
             zIndexOffset: 1000
         }).addTo(map);
+
+        // 실시간 지나온 비행 궤적 폴리라인 초기화 및 생성
+        if (state.sim.tracePolyline) map.removeLayer(state.sim.tracePolyline);
+        state.sim.tracePolyline = L.polyline([[startPt.lat, startPt.lon]], {
+            color: '#ef4444', // 빨간 노드와 깔맞춤한 네온 레드 궤적
+            weight: 4,
+            opacity: 0.85,
+            className: 'live-trace-line'
+        }).addTo(map);
     }
 
     state.sim.lastTime = performance.now();
@@ -1331,6 +1347,15 @@ function runSimulationStep(timestamp) {
     // 카메라 뷰 자동 추적 켜져 있을 시 지도의 중심을 드론의 실시간 보간 좌표로 이동
     if (state.sim.autoTrack && map) {
         map.panTo([curLat, curLon]);
+    }
+
+    // 실시간 비행 궤적(Trace) 폴리라인 좌표 갱신
+    if (state.sim.tracePolyline) {
+        // 이미 완전히 통과한 웨이포인트들의 좌표
+        const passedLatLngs = waypoints.slice(0, currentIdx + 1).map(wp => [wp.lat, wp.lon]);
+        // 현재 보간된 드론의 좌표를 맨 뒤에 가산
+        passedLatLngs.push([curLat, curLon]);
+        state.sim.tracePolyline.setLatLngs(passedLatLngs);
     }
 
     // 2. 고도 보간 및 실시간 기상 연산 (Wind Shear)
