@@ -127,6 +127,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initMap();
     initDemoAirspaces();
     initEventListeners();
+    initAltitudeChartDragEvents(); // 드래그 이벤트 최초 1회만 단일 등록 (메모리 누수 방지)
     refreshAllData();
     lucide.createIcons();
 });
@@ -1538,14 +1539,12 @@ function renderAltitudeChart() {
 
     // SVG 컨텐츠 주입
     el.altProfileSvg.innerHTML = defs + horizLines + baseLine + vertLines + fillArea + altCurve + nodes + indicator;
-
-    // 드래그 마우스 및 터치 이벤트 바인딩
-    initAltitudeChartDragEvents(margin, plotHeight, height);
 }
 
-// SVG 드래그 인터랙션 모듈 (마우스 & 터치 대응)
-function initAltitudeChartDragEvents(margin, plotHeight, height) {
-    let activeIndex = null;
+// SVG 드래그 인터랙션 모듈 (이벤트 위임 기법을 적용하여 최초 1회만 바인딩)
+function initAltitudeChartDragEvents() {
+    // 드래그 중인 활성 웨이포인트 인덱스 (state.sim.dragNodeIndex 활용)
+    state.sim.dragNodeIndex = null;
 
     const getEventY = (e) => {
         const rect = el.altProfileSvg.getBoundingClientRect();
@@ -1557,17 +1556,24 @@ function initAltitudeChartDragEvents(margin, plotHeight, height) {
 
     const startDrag = (e) => {
         const target = e.target;
-        if (target.classList.contains('alt-control-node')) {
-            activeIndex = parseInt(target.getAttribute('data-index'));
-            state.sim.dragNodeIndex = activeIndex;
+        if (target && target.classList.contains('alt-control-node')) {
+            const index = parseInt(target.getAttribute('data-index'));
+            state.sim.dragNodeIndex = index;
             target.classList.add('dragging');
-            map.dragging.disable(); // 드래그 중에는 Leaflet 맵 드래그 방지
+            
+            if (map) map.dragging.disable(); // 드래그 중에는 맵 스크롤 차단
         }
     };
 
     const doDrag = (e) => {
-        if (activeIndex === null) return;
-        e.preventDefault();
+        const activeIndex = state.sim.dragNodeIndex;
+        if (activeIndex === null || !el.altProfileSvg) return;
+        
+        // 드래그 진행 중일 때만 좌표 계산
+        const rect = el.altProfileSvg.getBoundingClientRect();
+        const height = rect.height || 90;
+        const margin = { top: 12, right: 18, bottom: 18, left: 24 };
+        const plotHeight = Math.max(30, height - margin.top - margin.bottom);
 
         const y = getEventY(e);
         
@@ -1593,7 +1599,7 @@ function initAltitudeChartDragEvents(margin, plotHeight, height) {
             // 실시간 날씨 기반 룰 연산 갱신
             refreshAllData();
             
-            // 차트 부드럽게 재렌더링
+            // 차트 부드럽게 재렌더링 (이벤트 위임이라 중복 리스너 추가 없음!)
             renderAltitudeChart();
             
             // 드래그 중인 노드 스타일 유지
@@ -1603,17 +1609,17 @@ function initAltitudeChartDragEvents(margin, plotHeight, height) {
     };
 
     const stopDrag = () => {
+        const activeIndex = state.sim.dragNodeIndex;
         if (activeIndex !== null) {
             const activeNode = el.altProfileSvg.querySelector(`.alt-control-node[data-index="${activeIndex}"]`);
             if (activeNode) activeNode.classList.remove('dragging');
             
-            activeIndex = null;
             state.sim.dragNodeIndex = null;
-            map.dragging.enable(); // 지도 드래그 원상복구
+            if (map) map.dragging.enable(); // 지도 드래그 원상복구
         }
     };
 
-    // 마우스 이벤트 등록
+    // 마우스 이벤트 등록 (최초 1회만 window/SVG에 걸림)
     el.altProfileSvg.addEventListener('mousedown', startDrag);
     window.addEventListener('mousemove', doDrag);
     window.addEventListener('mouseup', stopDrag);
