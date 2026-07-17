@@ -1520,14 +1520,14 @@ function renderAltitudeChart() {
     const pathD = 'M ' + coords.map(c => `${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' L ');
     const fillD = `${pathD} L ${coords[coords.length - 1].x.toFixed(1)} ${baseLineY.toFixed(1)} L ${coords[0].x.toFixed(1)} ${baseLineY.toFixed(1)} Z`;
 
-    const fillArea = `<path class="alt-fill-area" d="${fillD}" />`;
-    const altCurve = `<path class="alt-curve" d="${pathD}" />`;
+    const fillArea = `<path id="alt-curve-fill" class="alt-fill-area" d="${fillD}" />`;
+    const altCurve = `<path id="alt-curve-line" class="alt-curve" d="${pathD}" />`;
 
     // 6. 드래그 가능 노드 점(Circles) 렌더링
     let nodes = '';
     coords.forEach((coord, idx) => {
         nodes += `
-            <circle class="alt-control-node" cx="${coord.x.toFixed(1)}" cy="${coord.y.toFixed(1)}" r="5" data-index="${idx}" />
+            <circle id="alt-node-${idx}" class="alt-control-node" cx="${coord.x.toFixed(1)}" cy="${coord.y.toFixed(1)}" r="5" data-index="${idx}" />
         `;
     });
 
@@ -1596,13 +1596,45 @@ function initAltitudeChartDragEvents() {
                 marker.setTooltipContent(`지점 #${activeIndex + 1}<br><span class="text-emerald-400 font-bold">${alt}m</span>`);
             }
             
-            // 차트 부드럽게 재렌더링 (이벤트 위임이라 중복 리스너 추가 없음!)
-            // 드래그 중에는 무거운 룰 연산(refreshAllData)을 스킵하여 60fps 렌더링 확보
-            renderAltitudeChart();
+            // ====================================================
+            // 🚀 [Zero-Lag] DOM 직접 갱신 (InnerHTML 전체 파괴 현상 방지)
+            // ====================================================
             
-            // 드래그 중인 노드 스타일 유지
-            const activeNode = el.altProfileSvg.querySelector(`.alt-control-node[data-index="${activeIndex}"]`);
-            if (activeNode) activeNode.classList.add('dragging');
+            // 1. 드래그 중인 노드의 cy 높이만 DOM에서 직접 갱신 (브라우저 부하 0)
+            const circleNode = document.getElementById(`alt-node-${activeIndex}`);
+            if (circleNode) {
+                circleNode.setAttribute('cy', y.toFixed(1));
+            }
+
+            // 2. 전체 고도 선(Line) 및 채우기 영역(Fill) Path 데이터 즉시 갱신
+            const fillPath = document.getElementById('alt-curve-fill');
+            const linePath = document.getElementById('alt-curve-line');
+            
+            if (fillPath && linePath) {
+                const circles = el.altProfileSvg.querySelectorAll('.alt-control-node');
+                const tempCoords = [];
+                
+                circles.forEach((cNode) => {
+                    const idx = parseInt(cNode.getAttribute('data-index'));
+                    const cx = parseFloat(cNode.getAttribute('cx'));
+                    let cy = parseFloat(cNode.getAttribute('cy'));
+                    
+                    // 현재 드래그 중인 대상 노드는 실시간 마우스 계산 Y 반영
+                    if (idx === activeIndex) {
+                        cy = y;
+                    }
+                    tempCoords.push({ idx, x: cx, y: cy });
+                });
+                
+                // 인덱스 기준 정렬
+                tempCoords.sort((a, b) => a.idx - b.idx);
+                
+                const newPathD = 'M ' + tempCoords.map(c => `${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' L ');
+                const newFillD = `${newPathD} L ${tempCoords[tempCoords.length - 1].x.toFixed(1)} ${zeroAltY.toFixed(1)} L ${tempCoords[0].x.toFixed(1)} ${zeroAltY.toFixed(1)} Z`;
+                
+                linePath.setAttribute('d', newPathD);
+                fillPath.setAttribute('d', newFillD);
+            }
         }
     };
 
@@ -1615,7 +1647,8 @@ function initAltitudeChartDragEvents() {
             state.sim.dragNodeIndex = null;
             if (map) map.dragging.enable(); // 지도 드래그 원상복구
 
-            // 드래그가 완전히 멈춘 릴리즈 시점에 최종 룰 연산 및 기상 판단 1회 수행 (성능 최적화)
+            // 드래그가 완전히 멈췄을 때 전체 SVG 구조 정렬 및 룰 연산 1회 최종 갱신
+            renderAltitudeChart();
             refreshAllData();
         }
     };
