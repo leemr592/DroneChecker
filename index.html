@@ -172,10 +172,29 @@
 
                     <div>
                         <div class="flex justify-between text-xs font-medium text-slate-400 mb-1">
-                            <span>가상 주행 속도</span>
+                            <span>가상 주행 속도 (물리)</span>
                             <span class="text-emerald-400 font-bold" id="display-sim-speed">5 m/s</span>
                         </div>
                         <input type="range" id="input-sim-speed" min="2" max="20" step="1" value="5" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-medium text-slate-400 mb-1">
+                            <span>시뮬레이션 재생 배속</span>
+                            <span class="text-emerald-400 font-bold" id="display-time-scale">1 x 배속</span>
+                        </div>
+                        <input type="range" id="input-time-scale" min="1" max="10" step="1" value="1" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                    </div>
+
+                    <div class="flex items-center justify-between bg-slate-950/40 px-3.5 py-2.5 rounded-lg border border-slate-800/50">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="eye" class="w-4 h-4 text-emerald-400"></i>
+                            <span class="text-xs font-medium text-slate-300">비행 드론 카메라 자동 추적</span>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="sim-auto-track" checked class="sr-only peer">
+                            <div class="w-8 h-4 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500 peer-checked:after:bg-white"></div>
+                        </label>
                     </div>
                 </div>
 

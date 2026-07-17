@@ -36,7 +36,9 @@ const state = {
         accumulatedDist: 0,
         batteryLevel: 100,
         animationFrameId: null,
-        lastTime: 0
+        lastTime: 0,
+        timeScale: 1, // 시뮬레이션 속도 배수 (1x, 5x, 10x 등)
+        autoTrack: true // 드론 비행 중 지도 중앙 자동 카메라 뷰 갱신
     }
 };
 
@@ -96,7 +98,10 @@ const el = {
     telemetryBatt: document.getElementById('telemetry-batt'),
     telemetryBattBar: document.getElementById('telemetry-batt-bar'),
     altProfileSvg: document.getElementById('alt-profile-svg'),
-    altChartPlaceholder: document.getElementById('alt-chart-placeholder')
+    altChartPlaceholder: document.getElementById('alt-chart-placeholder'),
+    inputTimeScale: document.getElementById('input-time-scale'),
+    displayTimeScale: document.getElementById('display-time-scale'),
+    simAutoTrack: document.getElementById('sim-auto-track')
 };
 
 // Predefined Drone Presets
@@ -476,6 +481,16 @@ function initEventListeners() {
             const val = parseInt(e.target.value);
             state.sim.speed = val;
             el.displaySimSpeed.innerText = `${val} m/s`;
+        });
+
+        el.inputTimeScale.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            state.sim.timeScale = val;
+            el.displayTimeScale.innerText = `${val} x 배속`;
+        });
+
+        el.simAutoTrack.addEventListener('change', (e) => {
+            state.sim.autoTrack = e.target.checked;
         });
 
         el.btnPlaySim.addEventListener('click', startSimulation);
@@ -1170,6 +1185,8 @@ function resetPath() {
     state.sim.progress = 0;
     state.sim.accumulatedDist = 0;
     state.sim.batteryLevel = 100;
+    state.sim.timeScale = 1;
+    state.sim.autoTrack = true;
 
     // Reset UI
     el.btnPlaySim.disabled = true;
@@ -1179,6 +1196,11 @@ function resetPath() {
     el.simStatusBadge.innerText = '대기 중';
     el.simStatusBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400';
     
+    // 배속 슬라이더 및 체크박스 UI 상태 초기화
+    if (el.inputTimeScale) el.inputTimeScale.value = 1;
+    if (el.displayTimeScale) el.displayTimeScale.innerText = '1 x 배속';
+    if (el.simAutoTrack) el.simAutoTrack.checked = true;
+
     if (state.sim.isDrawing) {
         toggleDrawMode();
     }
@@ -1263,7 +1285,8 @@ function stopSimulationLoop() {
 function runSimulationStep(timestamp) {
     if (!state.sim.isPlaying || state.sim.isPaused) return;
 
-    const dt = (timestamp - state.sim.lastTime) / 1000; // 초 단위 델타 타임
+    // 실제 프레임 델타 타임에 사용자 지정 재생 배속(timeScale) 가중치 곱 적용
+    const dt = ((timestamp - state.sim.lastTime) / 1000) * state.sim.timeScale;
     state.sim.lastTime = timestamp;
 
     const waypoints = state.sim.waypoints;
@@ -1304,6 +1327,11 @@ function runSimulationStep(timestamp) {
     const curLat = ptA.lat + (ptB.lat - ptA.lat) * state.sim.progress;
     const curLon = ptA.lon + (ptB.lon - ptA.lon) * state.sim.progress;
     state.sim.droneMarker.setLatLng([curLat, curLon]);
+
+    // 카메라 뷰 자동 추적 켜져 있을 시 지도의 중심을 드론의 실시간 보간 좌표로 이동
+    if (state.sim.autoTrack && map) {
+        map.panTo([curLat, curLon]);
+    }
 
     // 2. 고도 보간 및 실시간 기상 연산 (Wind Shear)
     const curAlt = ptA.alt + (ptB.alt - ptA.alt) * state.sim.progress;
